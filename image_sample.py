@@ -98,8 +98,16 @@ def main():
             all_labels.extend([labels.cpu().numpy() for labels in gathered_labels])
         logger.log(f"created {len(all_images) * args.batch_size} samples")
 
+
     arr = np.concatenate(all_images, axis=0)
     arr = arr[: args.num_samples]
+
+    for ib in range(args.num_samples):
+        from PIL import Image
+        arri = np.array(arr[ib], dtype=np.uint8)
+        im = Image.fromarray(arri)
+        im.save("sample_{}.png".format(ib))
+
     if args.class_cond:
         label_arr = np.concatenate(all_labels, axis=0)
         label_arr = label_arr[: args.num_samples]

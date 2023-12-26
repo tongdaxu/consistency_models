@@ -270,7 +270,7 @@ class AttentionBlock(nn.Module):
         num_heads=1,
         num_head_channels=-1,
         use_checkpoint=False,
-        attention_type="flash",
+        attention_type="legacy",
         encoder_channels=None,
         dims=2,
         channels_last=False,
@@ -355,7 +355,6 @@ class QKVFlashAttention(nn.Module):
         ), "self.kdim must be divisible by num_heads"
         self.head_dim = self.embed_dim // num_heads
         assert self.head_dim in [16, 32, 64], "Only support head_dim == 16, 32, or 64"
-
         self.inner_attn = FlashAttention(
             attention_dropout=attention_dropout, **factory_kwargs
         )
@@ -366,7 +365,7 @@ class QKVFlashAttention(nn.Module):
             qkv, "b (three h d) s -> b s three h d", three=3, h=self.num_heads
         )
         qkv, _ = self.inner_attn(
-            qkv,
+            qkv.contiguous(),
             key_padding_mask=key_padding_mask,
             need_weights=need_weights,
             causal=self.causal,

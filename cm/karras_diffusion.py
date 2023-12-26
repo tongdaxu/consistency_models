@@ -8,12 +8,13 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 from piq import LPIPS
+import torchvision
 from torchvision.transforms import RandomCrop
 from . import dist_util
 
 from .nn import mean_flat, append_dims, append_zero
 from .random_util import get_generator
-
+from tqdm import tqdm
 
 def get_weightings(weight_schedule, snrs, sigma_data):
     if weight_schedule == "snr":
@@ -419,6 +420,64 @@ def karras_sample(
     return x_0.clamp(-1, 1)
 
 
+def karras_inverse(
+    diffusion,
+    model,
+    shape,
+    steps,
+    y,
+    operator,
+    zeta,
+    clip_denoised=True,
+    progress=False,
+    callback=None,
+    model_kwargs=None,
+    device=None,
+    sigma_min=0.002,
+    sigma_max=80,  # higher for highres?
+    rho=7.0,
+    sampler="heun",
+    s_churn=0.0,
+    s_tmin=0.0,
+    s_tmax=float("inf"),
+    s_noise=1.0,
+    generator=None,
+    ts=None,
+):
+    if generator is None:
+        generator = get_generator("dummy")
+
+    sigmas = get_sigmas_karras(steps, sigma_min, sigma_max, rho, device=device)
+
+    x_T = generator.randn(*shape, device=device) * sigma_max
+
+    sample_fn = {
+        "sample_euler_ancestral_dps": sample_euler_ancestral_dps,
+    }[sampler]
+
+    sampler_args = {}
+
+    def denoiser(x_t, sigma):
+        _, denoised = diffusion.denoise(model, x_t, sigma, **model_kwargs)
+        if clip_denoised:
+            denoised = denoised.clamp(-1, 1)
+        return denoised
+
+    x_0 = sample_fn(
+        denoiser,
+        x_T,
+        sigmas,
+        generator,
+        y,
+        operator,
+        zeta,
+        progress=progress,
+        callback=callback,
+        **sampler_args,
+    )
+    return x_0.clamp(-1, 1)
+
+
 def get_sigmas_karras(n, sigma_min, sigma_max, rho=7.0, device="cpu"):
     """Constructs the noise schedule of Karras et al. (2022)."""
     ramp = th.linspace(0, 1, n)
@@ -455,6 +514,10 @@ def sample_euler_ancestral(model, x, sigmas, generator, progress=False, callback
 
     for i in indices:
         denoised = model(x, sigmas[i] * s_in)
+        if i % 100 == 0:
+            x0t = (denoised + 1.0) / 2.0
+            torchvision.utils.save_image(x0t, "x0t_{}.png".format(i))
+
         sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1])
         if callback is not None:
             callback(
@@ -473,6 +536,45 @@ def sample_euler_ancestral(model, x, sigmas, generator, progress=False, callback
         x = x + generator.randn_like(x) * sigma_up
     return x
 
+@th.no_grad()
+def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None):
+    """DPS with ancestral sampling."""
+    s_in = x.new_ones([x.shape[0]])
+    indices = range(len(sigmas) - 1)
+
+    for i in tqdm(indices):
+        with th.enable_grad():
+            x_ = x.detach().clone().requires_grad_()
+            denoised = model(x_, sigmas[i] * s_in)
+            difference = y - operator.forward(denoised)
+            norm = th.linalg.norm(difference)
+            norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
+            print("distance: {0:.4f}".format(norm))
+
+        # if i % 100 == 0:
+        #     x0t = (denoised + 1.0) / 2.0
+        #     torchvision.utils.save_image(x0t, "x0t_{}.png".format(i))
+
+        sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1])
+        if callback is not None:
+            callback(
+                {
+                    "x": x,
+                    "i": i,
+                    "sigma": sigmas[i],
+                    "sigma_hat": sigmas[i],
+                    "denoised": denoised,
+                }
+            )
+        d = to_d(x, sigmas[i], denoised)
+        # Euler method
+        dt = sigma_down - sigmas[i]
+        x = x + d * dt
+        x = x + generator.randn_like(x) * sigma_up
+        offset = zeta * norm_grad * sigmas[i]
+        x = x - offset
+        # print(th.mean(th.abs(x)), th.mean(th.abs(offset)))
+    return x
 
 @th.no_grad()
 def sample_midpoint_ancestral(model, x, ts, generator, progress=False, callback=None):
