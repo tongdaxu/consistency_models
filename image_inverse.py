@@ -8,12 +8,11 @@ import os
 
 import numpy as np
 import torch as th
-import torch.distributed as dist
 import yaml
 import torchvision.transforms as transforms
 import torchvision
 
-from cm import dist_util, logger
+from cm import logger
 from cm.script_util import (
     NUM_CLASSES,
     model_and_diffusion_defaults,
@@ -24,6 +23,7 @@ from cm.script_util import (
 from cm.random_util import get_generator
 from cm.karras_diffusion import karras_sample, karras_inverse
 from ops import get_operator, get_dataset, get_dataloader
+device = th.device('cuda:0')
 
 def load_yaml(file_path: str) -> dict:
     with open(file_path) as f:
@@ -33,7 +33,6 @@ def load_yaml(file_path: str) -> dict:
 def main():
     args = create_argparser().parse_args()
 
-    dist_util.setup_dist()
     logger.configure()
 
     if "consistency" in args.training_mode:
@@ -47,9 +46,9 @@ def main():
         distillation=distillation,
     )
     model.load_state_dict(
-        dist_util.load_state_dict(args.model_path, map_location="cpu")
+        th.load(args.model_path, map_location="cpu")
     )
-    model.to(dist_util.dev())
+    model.to(device)
     if args.use_fp16:
         model.convert_to_fp16()
     model.eval()
@@ -71,7 +70,7 @@ def main():
                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     dataset = get_dataset(**cfg['data'], transforms=transform)
     loader = get_dataloader(dataset, batch_size=1, num_workers=0, train=False)
-    operator = get_operator(device=dist_util.dev(), **cfg['operator'])
+    operator = get_operator(device=device, **cfg['operator'])
     save_dir = cfg['outpath']
     os.makedirs(save_dir, exist_ok=True)
     out_path = os.path.join(save_dir, cfg['operator']['name'])
@@ -80,7 +79,7 @@ def main():
         os.makedirs(os.path.join(out_path, img_dir), exist_ok=True)
     for i, ref_img in enumerate(loader):
         fname = str(i).zfill(5) + '.png'
-        ref_img = ref_img.to(dist_util.dev())
+        ref_img = ref_img.to(device)
         y_n = operator.forward(ref_img)
         model_kwargs = {}
         sample = karras_inverse(
@@ -92,7 +91,7 @@ def main():
             operator = operator,
             zeta = zeta,
             model_kwargs=model_kwargs,
-            device=dist_util.dev(),
+            device=device,
             clip_denoised=args.clip_denoised,
             sampler=args.sampler,
             sigma_min=args.sigma_min,
@@ -104,13 +103,16 @@ def main():
             generator=generator,
             ts=ts,
         )
-
-        torchvision.utils.save_image((y_n + 1.0) / 2.0, os.path.join(out_path, 'input', fname))
+        if cfg['operator']['name'] == 'roomlayout':
+            from roomlayout import label_as_rgb_visual
+            torchvision.utils.save_image(label_as_rgb_visual(th.max(y_n, 1)[1]), os.path.join(out_path, 'input', fname))
+            torchvision.utils.save_image(label_as_rgb_visual(th.max(operator.forward(sample), 1)[1]), os.path.join(out_path, 'low_res', fname))
+        else:
+            torchvision.utils.save_image((y_n + 1.0) / 2.0, os.path.join(out_path, 'input', fname))
+            torchvision.utils.save_image((operator.forward(sample) + 1.0) / 2.0, os.path.join(out_path, 'low_res', fname))
         torchvision.utils.save_image((ref_img + 1.0) / 2.0, os.path.join(out_path, 'label', fname))
         torchvision.utils.save_image((sample + 1.0) / 2.0, os.path.join(out_path, 'recon', fname))
-        torchvision.utils.save_image((operator.forward(sample) + 1.0) / 2.0, os.path.join(out_path, 'low_res', fname))
 
-    dist.barrier()
     logger.log("sampling complete")
 
 def create_argparser():

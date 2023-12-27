@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import VisionDataset
 import os 
 from torchvision import transforms
-
+from roomlayout import LayoutSeg
 
 class Resizer(nn.Module):
     def __init__(self, in_shape, scale_factor=None, output_shape=None, kernel=None, antialiasing=True):
@@ -265,7 +265,18 @@ class GaussialBlurOperator(LinearOperator):
         return self.kernel.view(1, 1, self.kernel_size, self.kernel_size)
 
 
+@register_operator(name='roomlayout')
+class Layout(LinearOperator):
+    def __init__(self, weight_path, device):
+        self.model = LayoutSeg.load_from_checkpoint(weight_path, backbone='resnet101').to(device)
+        self.model.freeze()
 
+    def forward(self, data, **kwargs):
+        scores, _ = self.model(data)
+        return scores
+
+    def transpose(self, data):
+        return data
 
 __DATASET__ = {}
 
@@ -305,7 +316,7 @@ class FFHQDataset(VisionDataset):
         assert len(self.fpaths) > 0, "File list is empty. Check the root."
 
     def __len__(self):
-        return len(self.fpaths)
+        return min(len(self.fpaths), 1000)
 
     def __getitem__(self, index: int):
         fpath = self.fpaths[index]
