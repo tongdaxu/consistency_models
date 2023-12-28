@@ -2,7 +2,7 @@
 Based on: https://github.com/crowsonkb/k-diffusion
 """
 import random
-
+import os
 import numpy as np
 import torch as th
 import torch.nn as nn
@@ -374,6 +374,7 @@ def karras_sample(
     generator=None,
     ts=None,
 ):
+
     if generator is None:
         generator = get_generator("dummy")
 
@@ -382,6 +383,7 @@ def karras_sample(
     else:
         sigmas = get_sigmas_karras(steps, sigma_min, sigma_max, rho, device=device)
 
+    th.manual_seed(42)
     x_T = generator.randn(*shape, device=device) * sigma_max
 
     sample_fn = {
@@ -446,16 +448,21 @@ def karras_inverse(
     s_noise=1.0,
     generator=None,
     ts=None,
+    distiller=None,
+    save_dir=None
 ):
+
     if generator is None:
         generator = get_generator("dummy")
 
     sigmas = get_sigmas_karras(steps, sigma_min, sigma_max, rho, device=device)
 
+    th.manual_seed(42)
     x_T = generator.randn(*shape, device=device) * sigma_max
 
     sample_fn = {
         "sample_euler_ancestral_dps": sample_euler_ancestral_dps,
+        "sample_euler_ancestral_cm": sample_euler_ancestral_cm,
         "sample_cm_optimize_noise": sample_cm_optimize_noise,
     }[sampler]
 
@@ -463,6 +470,12 @@ def karras_inverse(
 
     def denoiser(x_t, sigma):
         _, denoised = diffusion.denoise(model, x_t, sigma, **model_kwargs)
+        if clip_denoised:
+            denoised = denoised.clamp(-1, 1)
+        return denoised
+
+    def denoiserdistiller(x_t, sigma):
+        _, denoised = diffusion.denoise(distiller, x_t, sigma, **model_kwargs)
         if clip_denoised:
             denoised = denoised.clamp(-1, 1)
         return denoised
@@ -477,6 +490,8 @@ def karras_inverse(
         zeta,
         progress=progress,
         callback=callback,
+        distiller = denoiserdistiller,
+        save_dir = save_dir,
         **sampler_args,
     )
     return x_0.clamp(-1, 1)
@@ -541,23 +556,23 @@ def sample_euler_ancestral(model, x, sigmas, generator, progress=False, callback
     return x
 
 @th.no_grad()
-def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None):
+def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, distiller=None, save_dir=None):
     """DPS with ancestral sampling."""
     s_in = x.new_ones([x.shape[0]])
-    indices = range(len(sigmas) - 1)
-
-    for i in tqdm(indices):
+    steps = len(sigmas)
+    indices = range(steps - 1)
+    pbar = tqdm(indices)
+    for i in pbar:
+        fname = str(i).zfill(5) + '.png'
         with th.enable_grad():
             x_ = x.detach().clone().requires_grad_()
             denoised = model(x_, sigmas[i] * s_in)
             difference = y - operator.forward(denoised)
             norm = th.linalg.norm(difference)
             norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
-            print("distance: {0:.4f}".format(norm))
-
-        # if i % 100 == 0:
-        #     x0t = (denoised + 1.0) / 2.0
-        #     torchvision.utils.save_image(x0t, "x0t_{}.png".format(i))
+            pbar.set_postfix({'distance': norm.item()}, refresh=False)
+        if (i + 1) % 100 == 0:
+            torchvision.utils.save_image((denoised + 1.0) / 2.0, os.path.join(save_dir, 'E0t', fname))
 
         sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1])
         if callback is not None:
@@ -571,17 +586,54 @@ def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, p
                 }
             )
         d = to_d(x, sigmas[i], denoised)
-        # Euler method
         dt = sigma_down - sigmas[i]
         x = x + d * dt
         x = x + generator.randn_like(x) * sigma_up
         offset = zeta * norm_grad * sigmas[i]
         x = x - offset
-        # print(th.mean(th.abs(x)), th.mean(th.abs(offset)))
     return x
 
+@th.no_grad()
+def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, distiller=None, save_dir=None):
+    """DPS-CM with ancestral sampling."""
+    s_in = x.new_ones([x.shape[0]])
+    steps = len(sigmas)
+    indices = range(steps - 1)
+    pbar = tqdm(indices)
+    for i in pbar:
+        fname = str(i).zfill(5) + '.png'
+        denoised = model(x, sigmas[i] * s_in)
+        with th.enable_grad():
+            x_ = x.detach().clone().requires_grad_()
+            denoisedsp = distiller(x_, sigmas[i] * s_in)
+            difference = y - operator.forward(denoisedsp)
+            norm = th.linalg.norm(difference)
+            norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
+            pbar.set_postfix({'distance': norm.item()}, refresh=False)
+        if (i + 1) % 100 == 0:
+            torchvision.utils.save_image((denoised + 1.0) / 2.0, os.path.join(save_dir, 'E0t', fname))
+            torchvision.utils.save_image((denoisedsp + 1.0) / 2.0, os.path.join(save_dir, 'x0t', fname))
 
-def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, t_min=0.002, t_max=80.0, rho=7.0, steps=151, ts=[0,75,100,125,150], each_optimize_step=200):
+        sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1])
+        if callback is not None:
+            callback(
+                {
+                    "x": x,
+                    "i": i,
+                    "sigma": sigmas[i],
+                    "sigma_hat": sigmas[i],
+                    "denoised": denoised,
+                }
+            )
+        d = to_d(x, sigmas[i], denoised)
+        dt = sigma_down - sigmas[i]
+        x = x + d * dt
+        x = x + generator.randn_like(x) * sigma_up
+        offset = zeta * norm_grad * sigmas[i]
+        x = x - offset
+    return x
+
+def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, t_min=0.002, t_max=80.0, rho=7.0, steps=151, ts=[0,75,100,125,150], each_optimize_step=200, distiller=None, save_dir=None):
     loss_fn = th.nn.MSELoss(reduction='sum')
     t_max_rho = t_max ** (1 / rho)
     t_min_rho = t_min ** (1 / rho)
@@ -783,7 +835,7 @@ def sample_onestep(
     generator=None,
     progress=False,
     callback=None,
-):
+):  
     """Single-step generation from a distilled model."""
     s_in = x.new_ones([x.shape[0]])
     return distiller(x, sigmas[0] * s_in)

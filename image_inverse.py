@@ -35,16 +35,12 @@ def main():
 
     logger.configure()
 
-    if "consistency" in args.training_mode:
-        distillation = True
-    else:
-        distillation = False
-
     logger.log("creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(
         **args_to_dict(args, model_and_diffusion_defaults().keys()),
-        distillation=distillation,
+        distillation=False,
     )
+
     model.load_state_dict(
         th.load(args.model_path, map_location="cpu")
     )
@@ -52,6 +48,21 @@ def main():
     if args.use_fp16:
         model.convert_to_fp16()
     model.eval()
+
+    if args.distiller_path == "":
+        distiller = None
+    else:
+        distiller, _ = create_model_and_diffusion(
+            **args_to_dict(args, model_and_diffusion_defaults().keys()),
+            distillation=True,
+        )
+        distiller.load_state_dict(
+            th.load(args.distiller_path, map_location="cpu")
+        )
+        distiller.to(device)
+        if args.use_fp16:
+            distiller.convert_to_fp16()
+        distiller.eval()
 
     logger.log("sampling...")
     if args.sampler == "multistep":
@@ -75,7 +86,7 @@ def main():
     os.makedirs(save_dir, exist_ok=True)
     out_path = os.path.join(save_dir, cfg['operator']['name'])
     os.makedirs(out_path, exist_ok=True)
-    for img_dir in ['input', 'recon', 'progress', 'label', 'low_res']:
+    for img_dir in ['input', 'recon', 'progress', 'label', 'low_res', 'E0t', 'x0t']:
         os.makedirs(os.path.join(out_path, img_dir), exist_ok=True)
     for i, ref_img in enumerate(loader):
         fname = str(i).zfill(5) + '.png'
@@ -102,6 +113,8 @@ def main():
             s_noise=args.s_noise,
             generator=generator,
             ts=ts,
+            distiller=distiller,
+            save_dir=out_path,
         )
         if cfg['operator']['name'] == 'roomlayout':
             from roomlayout import label_as_rgb_visual
@@ -112,7 +125,7 @@ def main():
             torchvision.utils.save_image((operator.forward(sample) + 1.0) / 2.0, os.path.join(out_path, 'low_res', fname))
         torchvision.utils.save_image((ref_img + 1.0) / 2.0, os.path.join(out_path, 'label', fname))
         torchvision.utils.save_image((sample + 1.0) / 2.0, os.path.join(out_path, 'recon', fname))
-
+        assert(0)
     logger.log("sampling complete")
 
 def create_argparser():
@@ -129,6 +142,7 @@ def create_argparser():
         s_noise=1.0,
         steps=40,
         model_path="",
+        distiller_path="",
         seed=42,
         ts="",
         cfg="",

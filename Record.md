@@ -35,3 +35,22 @@ nohup python -u image_inverse.py --training_mode edm --generator determ-indiv --
 
 
 nohup python -u image_inverse.py --training_mode edm --generator determ-indiv --batch_size 1 --sigma_max 80 --sigma_min 0.002 --s_churn 0 --steps 1000 --sampler sample_euler_ancestral_dps --model_path edm_bedroom256_ema.pt --attention_resolutions 32,16,8  --class_cond False --dropout 0.1 --image_size 256 --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --num_samples 1 --resblock_updown True --use_fp16 False --use_scale_shift_norm False --weight_schedule karras --cfg roomlayout.yaml &
+
+
+/NEW_EDS/JJ_Group/zhuzr/consistency_models/cd_bedroom256_l2.pt
+/NEW_EDS/JJ_Group/zhuzr/consistency_models/cd_bedroom256_lpips.pt
+/NEW_EDS/JJ_Group/zhuzr/consistency_models/ct_bedroom256.pt
+
+
+python image_sample.py --batch_size 1 --training_mode consistency_distillation --sampler onestep --ts 0,62,150 --steps 1000 --model_path /NEW_EDS/JJ_Group/zhuzr/consistency_models/cd_bedroom256_l2.pt --attention_resolutions 32,16,8 --class_cond False --use_scale_shift_norm False --dropout 0.0 --image_size 256 --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --num_samples 1 --resblock_updown True --use_fp16 True --weight_schedule uniform
+
+## How to run
+* room layout dps
+    ```bash
+    python -u image_inverse.py --training_mode edm --generator determ-indiv --batch_size 1 --sigma_max 80 --sigma_min 0.002 --s_churn 0 --steps 1000 --sampler sample_euler_ancestral_dps --model_path edm_bedroom256_ema.pt --attention_resolutions 32,16,8  --class_cond False --dropout 0.1 --image_size 256 --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --num_samples 1 --resblock_updown True --use_fp16 True --use_scale_shift_norm False --weight_schedule karras --cfg roomlayout.yaml
+    ```
+
+* room layout dps-cm
+    ```bash
+    python -u image_inverse.py --training_mode edm --generator determ-indiv --batch_size 1 --sigma_max 80 --sigma_min 0.002 --s_churn 0 --steps 1000 --sampler sample_euler_ancestral_cm --model_path edm_bedroom256_ema.pt --distiller_path /NEW_EDS/JJ_Group/zhuzr/consistency_models/cd_bedroom256_lpips.pt --attention_resolutions 32,16,8  --class_cond False --dropout 0.1 --image_size 256 --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --num_samples 1 --resblock_updown True --use_fp16 True --use_scale_shift_norm False --weight_schedule karras --cfg roomlayout.yaml
+    ```
