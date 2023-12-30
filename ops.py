@@ -286,6 +286,10 @@ class Segmentation(LinearOperator):
     def __init__(self,device):
         self.encoder = ModelBuilder.build_encoder(arch="mobilenetv2dilated",fc_dim=320,weights="/NEW_EDS/JJ_Group/zhuzr/xutd_cm/encoder_epoch_20.pth").to('cuda')
         self.decoder = ModelBuilder.build_decoder(arch="c1_deepsup",fc_dim=320,num_class=150,weights="/NEW_EDS/JJ_Group/zhuzr/xutd_cm/decoder_epoch_20.pth",use_softmax=True).to('cuda')
+        for name, param in self.encoder.named_parameters():
+            param.requires_grad = False
+        for name, param in self.decoder.named_parameters():
+            param.requires_grad = False
         
     def forward(self, data, **kwargs):
         pred = self.decoder(self.encoder(data, return_feature_maps=True), segSize=(256,256))

@@ -644,7 +644,7 @@ def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, pro
         optimize_x0 = model(x, sigmas[0] * s_in)
         low_optimize_x0 = operator.forward(optimize_x0)
         loss = loss_fn(y,low_optimize_x0)
-        x.grad = th.autograd.grad(loss, x)[0]
+        loss.backward()
         print(loss)
         input_optimizer.step()
         input_optimizer.zero_grad()
@@ -662,7 +662,7 @@ def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, pro
             optimize_x0 = model(x, now_t * s_in)
             low_optimize_x0 = operator.forward(optimize_x0)
             loss = loss_fn(y,low_optimize_x0)
-            tmp_random.grad = th.autograd.grad(loss, tmp_random)[0]
+            loss.backward()
             print(loss)
             input_optimizer.step()
             input_optimizer.zero_grad()
