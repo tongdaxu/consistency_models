@@ -1,0 +1,16 @@
+zeta: 0.02
+
+
+x_T_lr: 1e-1
+
+noise_lr: 5e-3
+
+data:
+  name: ffhq
+  root: /NEW_EDS/JJ_Group/xutd/common_datasets/lsun_bedroom_256x256/lanczos
+
+outpath: results
+
+operator:
+  name: roomlayout
+  weight_path: /NEW_EDS/JJ_Group/xutd/lsun-room/model_retrained.ckpt

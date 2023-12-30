@@ -120,12 +120,15 @@ def main():
             from roomlayout import label_as_rgb_visual
             torchvision.utils.save_image(label_as_rgb_visual(th.max(y_n, 1)[1]), os.path.join(out_path, 'input', fname))
             torchvision.utils.save_image(label_as_rgb_visual(th.max(operator.forward(sample), 1)[1]), os.path.join(out_path, 'low_res', fname))
+        elif cfg['operator']['name'] == 'roomsegmentation':
+            from roomsegmentation import visualize_result
+            visualize_result(y_n, os.path.join(out_path, 'input', fname))
+            visualize_result(operator.forward(sample), os.path.join(out_path, 'low_res', fname))
         else:
             torchvision.utils.save_image((y_n + 1.0) / 2.0, os.path.join(out_path, 'input', fname))
             torchvision.utils.save_image((operator.forward(sample) + 1.0) / 2.0, os.path.join(out_path, 'low_res', fname))
         torchvision.utils.save_image((ref_img + 1.0) / 2.0, os.path.join(out_path, 'label', fname))
         torchvision.utils.save_image((sample + 1.0) / 2.0, os.path.join(out_path, 'recon', fname))
-        assert(0)
     logger.log("sampling complete")
 
 def create_argparser():

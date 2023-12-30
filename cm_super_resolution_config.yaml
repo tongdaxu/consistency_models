@@ -1,0 +1,14 @@
+zeta: 9.6
+
+
+
+data:
+  name: ffhq
+  root: /NEW_EDS/JJ_Group/xutd/common_datasets/lsun_bedroom_256x256/lanczos
+
+outpath: results
+
+operator:
+  name: super_resolution
+  in_shape: !!python/tuple [1, 3, 256, 256]
+  scale_factor: 4
