@@ -290,8 +290,10 @@ class Segmentation(LinearOperator):
             param.requires_grad = False
         for name, param in self.decoder.named_parameters():
             param.requires_grad = False
-        
+        self.transform = transforms.Compose([transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])])
     def forward(self, data, **kwargs):
+        data = (data + 1) / 2.0
+        data = self.transform(data)
         pred = self.decoder(self.encoder(data, return_feature_maps=True), segSize=(256,256))
         return pred
     
