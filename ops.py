@@ -13,6 +13,8 @@ import numpy as np
 import torch
 from math import pi
 
+import scipy
+
 from glob import glob
 from PIL import Image
 from typing import Callable, Optional
@@ -21,6 +23,7 @@ from torchvision.datasets import VisionDataset
 import os 
 from torchvision import transforms
 from roomlayout import LayoutSeg
+from roomsegmentation import SegmentationModule,ModelBuilder
 
 class Resizer(nn.Module):
     def __init__(self, in_shape, scale_factor=None, output_shape=None, kernel=None, antialiasing=True):
@@ -275,6 +278,23 @@ class Layout(LinearOperator):
         scores, _ = self.model(data)
         return scores
 
+    def transpose(self, data):
+        return data
+    
+@register_operator(name='roomsegmentation')
+class Segmentation(LinearOperator):
+    def __init__(self,device):
+        self.encoder = ModelBuilder.build_encoder(arch="mobilenetv2dilated",fc_dim=320,weights="/NEW_EDS/JJ_Group/zhuzr/xutd_cm/encoder_epoch_20.pth").to('cuda')
+        self.decoder = ModelBuilder.build_decoder(arch="c1_deepsup",fc_dim=320,num_class=150,weights="/NEW_EDS/JJ_Group/zhuzr/xutd_cm/decoder_epoch_20.pth",use_softmax=True).to('cuda')
+        for name, param in self.encoder.named_parameters():
+            param.requires_grad = False
+        for name, param in self.decoder.named_parameters():
+            param.requires_grad = False
+        
+    def forward(self, data, **kwargs):
+        pred = self.decoder(self.encoder(data, return_feature_maps=True), segSize=(256,256))
+        return pred
+    
     def transpose(self, data):
         return data
 

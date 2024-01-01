@@ -640,16 +640,24 @@ def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, pro
     t_max_rho = t_max ** (1 / rho)
     t_min_rho = t_min ** (1 / rho)
     s_in = x.new_ones([x.shape[0]])
-    
-    t = (t_max_rho + ts[0] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
-    x0 = model(x, t * s_in)
-    
-    for denoise_step in range(len(ts) - 1):
+    x = Variable(x, requires_grad=True)
+    input_optimizer = th.optim.Adam([x], lr=2e-1)
+    for optimize_step in range(each_optimize_step):
+        optimize_x0 = model(x, sigmas[0] * s_in)
+        low_optimize_x0 = operator.forward(optimize_x0)
+        loss = loss_fn(y,low_optimize_x0)
+        loss.backward()
+        print(loss)
+        input_optimizer.step()
+        input_optimizer.zero_grad()
+        save_image((optimize_x0+1)/2,"0_"+str(optimize_step)+".png")
+    x0 = optimize_x0
+    for denoise_step in range(1, len(ts) - 1):
         now_t = (t_max_rho + ts[denoise_step] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         now_t = np.clip(now_t, t_min, t_max)
         tmp_random = generator.randn_like(x)
         tmp_random = Variable(tmp_random, requires_grad=True)
-        input_optimizer = th.optim.Adam([tmp_random], lr=1e-1)
+        input_optimizer = th.optim.Adam([tmp_random], lr=1e-2)
         optimize_x0 = None
         for optimize_step in range(each_optimize_step):
             x = x0.detach().clone() + tmp_random * np.sqrt(now_t**2 - t_min**2)
@@ -660,6 +668,7 @@ def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, pro
             print(loss)
             input_optimizer.step()
             input_optimizer.zero_grad()
+            save_image((optimize_x0+1)/2,str(denoise_step)+"_"+str(optimize_step)+".png")
         x0 = optimize_x0
     return x0
 

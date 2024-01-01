@@ -78,8 +78,8 @@ def main():
 
     cfg = load_yaml(args.cfg)
     zeta = cfg['zeta']
-    transform = transforms.Compose([transforms.ToTensor(),
-                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    # transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])])
     dataset = get_dataset(**cfg['data'], transforms=transform)
     loader = get_dataloader(dataset, batch_size=1, num_workers=0, train=False)
     operator = get_operator(device=device, **cfg['operator'])
@@ -126,6 +126,10 @@ def main():
             sample_flip = sample + torch.randn_like(sample) * 0.2
             out_filp = th.max(operator.forward(sample_flip), 1)[1]
             torchvision.utils.save_image(label_as_rgb_visual(out_filp), os.path.join(out_path, 'low_res', fname))
+        elif cfg['operator']['name'] == 'roomsegmentation':
+            from roomsegmentation import visualize_result
+            visualize_result(y_n, os.path.join(out_path, 'input', fname))
+            visualize_result(operator.forward(sample), os.path.join(out_path, 'low_res', fname))
         else:
             torchvision.utils.save_image((y_n + 1.0) / 2.0, os.path.join(out_path, 'input', fname))
             torchvision.utils.save_image((operator.forward(sample) + 1.0) / 2.0, os.path.join(out_path, 'low_res', fname))
