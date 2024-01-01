@@ -607,7 +607,7 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
         with th.enable_grad():
             x_ = x.detach().clone().requires_grad_()
             denoisedsp = distiller(x_, sigmas[i] * s_in)
-            difference = y - operator.forward(denoisedsp)
+            difference = y - operator.forward(denoisedsp + th.randn_like(denoisedsp) * 0.2)
             norm = th.linalg.norm(difference)
             norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
             pbar.set_postfix({'distance': norm.item()}, refresh=False)
