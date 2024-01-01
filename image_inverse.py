@@ -11,6 +11,7 @@ import torch as th
 import yaml
 import torchvision.transforms as transforms
 import torchvision
+import torch
 
 from cm import logger
 from cm.script_util import (
@@ -82,11 +83,11 @@ def main():
     dataset = get_dataset(**cfg['data'], transforms=transform)
     loader = get_dataloader(dataset, batch_size=1, num_workers=0, train=False)
     operator = get_operator(device=device, **cfg['operator'])
-    save_dir = cfg['outpath']
+    save_dir = args.savedir
     os.makedirs(save_dir, exist_ok=True)
     out_path = os.path.join(save_dir, cfg['operator']['name'])
     os.makedirs(out_path, exist_ok=True)
-    for img_dir in ['input', 'recon', 'progress', 'label', 'low_res', 'E0t', 'x0t']:
+    for img_dir in ['input', 'recon', 'progress', 'label', 'low_res', 'E0t', 'x0t', 'reE0t', 'rex0t']:
         os.makedirs(os.path.join(out_path, img_dir), exist_ok=True)
     for i, ref_img in enumerate(loader):
         fname = str(i).zfill(5) + '.png'
@@ -119,7 +120,12 @@ def main():
         if cfg['operator']['name'] == 'roomlayout':
             from roomlayout import label_as_rgb_visual
             torchvision.utils.save_image(label_as_rgb_visual(th.max(y_n, 1)[1]), os.path.join(out_path, 'input', fname))
-            torchvision.utils.save_image(label_as_rgb_visual(th.max(operator.forward(sample), 1)[1]), os.path.join(out_path, 'low_res', fname))
+            # avoid overfitting in evaluation
+            # trans = torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2)
+            # sample_flip = trans((sample + 1.0) / 2.0) * 2.0 - 1.0
+            sample_flip = sample + torch.randn_like(sample) * 0.2
+            out_filp = th.max(operator.forward(sample_flip), 1)[1]
+            torchvision.utils.save_image(label_as_rgb_visual(out_filp), os.path.join(out_path, 'low_res', fname))
         elif cfg['operator']['name'] == 'roomsegmentation':
             from roomsegmentation import visualize_result
             visualize_result(y_n, os.path.join(out_path, 'input', fname))
@@ -149,6 +155,7 @@ def create_argparser():
         seed=42,
         ts="",
         cfg="",
+        savedir="results/"
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()
