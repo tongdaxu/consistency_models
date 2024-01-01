@@ -16,6 +16,7 @@ from .nn import mean_flat, append_dims, append_zero
 from .random_util import get_generator
 from tqdm import tqdm
 from torch.autograd import Variable
+from roomlayout import label_as_rgb_visual
 
 from torchvision.utils import save_image
 
@@ -611,6 +612,7 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
             norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
             pbar.set_postfix({'distance': norm.item()}, refresh=False)
         if (i + 1) % 100 == 0:
+            torchvision.utils.save_image((x + 1.0) / 2.0, os.path.join(save_dir, 'progress', fname))
             torchvision.utils.save_image((denoised + 1.0) / 2.0, os.path.join(save_dir, 'E0t', fname))
             torchvision.utils.save_image((denoisedsp + 1.0) / 2.0, os.path.join(save_dir, 'x0t', fname))
 
