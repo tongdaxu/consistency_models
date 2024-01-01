@@ -633,7 +633,7 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
         x = x - offset
     return x
 
-def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, t_min=0.002, t_max=80.0, rho=7.0, steps=151, ts=[0,75,100,125,150], each_optimize_step=100, distiller=None, save_dir=None):
+def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, t_min=0.002, t_max=80.0, rho=7.0, steps=151, ts=[0,75,100,125,150], each_optimize_step=200, distiller=None, save_dir=None):
     loss_fn = th.nn.MSELoss(reduction='sum')
     t_max_rho = t_max ** (1 / rho)
     t_min_rho = t_min ** (1 / rho)

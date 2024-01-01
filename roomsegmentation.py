@@ -131,7 +131,7 @@ class _SynchronizedBatchNorm(_BatchNorm):
         if not (self._is_parallel and self.training):
             return F.batch_norm(
                 input, self.running_mean, self.running_var, self.weight, self.bias,
-                self.training, self.momentum, self.eps)
+                False, self.momentum, self.eps)
 
         # Resize the input to (B, C, -1).
         input_shape = input.size()
@@ -467,12 +467,22 @@ class ModelBuilder:
     def build_encoder(arch='resnet50dilated', fc_dim=512, weights=''):
         orig_mobilenet = mobilenetv2(pretrained=False)
         net_encoder = MobileNetV2Dilated(orig_mobilenet, dilate_scale=8)
-
+        # print(net_encoder.features)
         # encoders are usually pretrained
         # net_encoder.apply(ModelBuilder.weights_init)
+        # tmp1 = []
+        # for name, param in net_encoder.named_parameters():
+        #     tmp1.append(param)
+        # print(tmp1)
         if len(weights) > 0:
             print('Loading weights for net_encoder')
             net_encoder.load_state_dict(torch.load(weights, map_location=lambda storage, loc: storage), strict=False)
+        
+        # tmp2 = []
+        # for name, param in net_encoder.named_parameters():
+        #     tmp2.append(param)
+        # print(tmp2)
+        # print(tmp1 == tmp2)
         return net_encoder
 
     @staticmethod
