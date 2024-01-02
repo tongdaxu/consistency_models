@@ -300,6 +300,18 @@ class Segmentation(LinearOperator):
     def transpose(self, data):
         return data
 
+@register_operator(name='roomsegmentation')
+class Image2Text(LinearOperator):
+    def __init__(self) -> None:
+        
+        
+    def forward(self, data, **kwargs):
+        return 0
+    
+    def transpose(self,data):
+        return None
+
+
 __DATASET__ = {}
 
 def register_dataset(name: str):
