@@ -22,7 +22,7 @@ from cm.script_util import (
     args_to_dict,
 )
 from cm.random_util import get_generator
-from cm.karras_diffusion import karras_sample, karras_inverse
+from cm.karras_diffusion import karras_inverse
 from ops import get_operator, get_dataset, get_dataloader
 device = th.device('cuda:0')
 
@@ -78,7 +78,16 @@ def main():
 
     cfg = load_yaml(args.cfg)
     zeta = cfg['zeta']
-    transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    if cfg['data']['name'] == 'ffhq':
+        transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    elif cfg['data']['name'] == 'lsunlayout':
+        transform = transforms.Compose(
+            [transforms.Resize(256, interpolation=torchvision.transforms.InterpolationMode.NEAREST),
+             torchvision.transforms.CenterCrop(256),
+             transforms.ToTensor()])
+    else:
+        assert(0)
+
     dataset = get_dataset(**cfg['data'], transforms=transform)
     loader = get_dataloader(dataset, batch_size=1, num_workers=0, train=False)
     operator = get_operator(device=device, **cfg['operator'])
@@ -91,7 +100,11 @@ def main():
     for i, ref_img in enumerate(loader):
         fname = str(i).zfill(5) + '.png'
         ref_img = ref_img.to(device)
-        y_n = operator.forward(ref_img)
+        # read source image
+        # for segmentation
+        ## init means get argmax integer [0, C)
+        ## noninit means get logits
+        y_n = operator.forward(ref_img, mode='init')
         model_kwargs = {}
         sample = karras_inverse(
             diffusion,
@@ -115,24 +128,22 @@ def main():
             ts=ts,
             distiller=distiller,
             save_dir=out_path,
+            dmode=cfg['dmode']
         )
-        if cfg['operator']['name'] == 'roomlayout':
-            from roomlayout import label_as_rgb_visual
-            torchvision.utils.save_image(label_as_rgb_visual(th.max(y_n, 1)[1]), os.path.join(out_path, 'input', fname))
-            # avoid overfitting in evaluation
-            # trans = torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2)
-            # sample_flip = trans((sample + 1.0) / 2.0) * 2.0 - 1.0
+        if cfg['operator']['name'] == 'roomlayout' or cfg['operator']['name'] == 'roomsegmentation':
+            torchvision.utils.save_image(
+                (y_n + 1.0) / cfg['nclass'],
+                os.path.join(out_path, 'input', fname))
             sample_flip = sample + torch.randn_like(sample) * 0.2
-            out_filp = th.max(operator.forward(sample_flip), 1)[1]
-            torchvision.utils.save_image(label_as_rgb_visual(out_filp), os.path.join(out_path, 'low_res', fname))
-        elif cfg['operator']['name'] == 'roomsegmentation':
-            from roomsegmentation import visualize_result
-            visualize_result(y_n, os.path.join(out_path, 'input', fname))
-            visualize_result(operator.forward(sample), os.path.join(out_path, 'low_res', fname))
+            low_out = (operator.forward(sample_flip, mode='init') + 1.0) / cfg['nclass']
+            torchvision.utils.save_image(
+                low_out,
+                os.path.join(out_path, 'low_res', fname))
         else:
             torchvision.utils.save_image((y_n + 1.0) / 2.0, os.path.join(out_path, 'input', fname))
             torchvision.utils.save_image((operator.forward(sample) + 1.0) / 2.0, os.path.join(out_path, 'low_res', fname))
-        torchvision.utils.save_image((ref_img + 1.0) / 2.0, os.path.join(out_path, 'label', fname))
+        if cfg['data']['name'] == 'ffhq':
+            torchvision.utils.save_image((ref_img + 1.0) / 2.0, os.path.join(out_path, 'label', fname))
         torchvision.utils.save_image((sample + 1.0) / 2.0, os.path.join(out_path, 'recon', fname))
     logger.log("sampling complete")
 

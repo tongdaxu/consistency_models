@@ -276,7 +276,11 @@ class Layout(LinearOperator):
 
     def forward(self, data, **kwargs):
         scores, _ = self.model(data)
-        return scores
+        assert 'mode' in kwargs
+        if kwargs['mode'] == 'init':
+            return torch.argmax(scores, dim=1, keepdim=True)
+        else:
+            return scores
 
     def transpose(self, data):
         return data
@@ -291,11 +295,16 @@ class Segmentation(LinearOperator):
         for name, param in self.decoder.named_parameters():
             param.requires_grad = False
         self.transform = transforms.Compose([transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])])
+    
     def forward(self, data, **kwargs):
         data = (data + 1) / 2.0
         data = self.transform(data)
         pred = self.decoder(self.encoder(data, return_feature_maps=True), segSize=(256,256))
-        return pred
+        assert 'mode' in kwargs
+        if kwargs['mode'] == 'init':
+            return torch.argmax(pred, dim=1, keepdim=True)
+        else:
+            return pred
     
     def transpose(self, data):
         return data
@@ -348,3 +357,36 @@ class FFHQDataset(VisionDataset):
             img = self.transforms(img)
         
         return img
+
+@register_dataset(name='lsunlayout')
+class LSUNLayout(VisionDataset):
+    def __init__(self, root: str, transforms: Optional[Callable]=None):
+        super().__init__(root, transforms)
+
+        self.fpaths = sorted(glob(root + '/**/*.png', recursive=True))
+        assert len(self.fpaths) > 0, "File list is empty. Check the root."
+
+    def __len__(self):
+        return min(len(self.fpaths), 1000)
+
+    def __getitem__(self, index: int):
+        fpath = self.fpaths[index]
+        img = Image.open(fpath)
+        
+        if self.transforms is not None:
+            img = self.transforms(img)
+        img = torch.round(img * 5) - 1
+        return img # [0,1,2,3,4]
+
+if __name__ == "__main__":
+    trans = transforms.Compose([transforms.Resize(256, interpolation=torchvision.transforms.InterpolationMode.NEAREST),
+                                torchvision.transforms.CenterCrop(256),
+                                transforms.ToTensor()])
+    dataset = LSUNLayout(root='/NEW_EDS/JJ_Group/xutd/lsun-room/data/lsun_room/labelpng',
+                         transforms=trans)
+    dataloader = DataLoader(dataset, 
+                            1)
+
+    for y in dataloader:
+        print(y.dtype)
+        assert(0)

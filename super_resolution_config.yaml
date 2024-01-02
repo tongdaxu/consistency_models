@@ -1,4 +1,5 @@
 zeta: 9.6
+dmode: mse
 
 data:
   name: ffhq
