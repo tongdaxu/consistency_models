@@ -1,4 +1,4 @@
-zeta: 0.04
+zeta: 7.2
 
 data:
   name: ffhq
@@ -7,3 +7,6 @@ data:
 operator:
   name: roomlayout
   weight_path: /NEW_EDS/JJ_Group/xutd/lsun-room/model_retrained.ckpt
+
+dmode: crossentropy
+nclass: 5

@@ -450,7 +450,8 @@ def karras_inverse(
     generator=None,
     ts=None,
     distiller=None,
-    save_dir=None
+    save_dir=None,
+    dmode="mse"
 ):
 
     if generator is None:
@@ -493,6 +494,7 @@ def karras_inverse(
         callback=callback,
         distiller = denoiserdistiller,
         save_dir = save_dir,
+        dmode = dmode,
         **sampler_args,
     )
     return x_0.clamp(-1, 1)
@@ -557,7 +559,7 @@ def sample_euler_ancestral(model, x, sigmas, generator, progress=False, callback
     return x
 
 @th.no_grad()
-def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, distiller=None, save_dir=None):
+def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, distiller=None, save_dir=None, dmode="mse"):
     """DPS with ancestral sampling."""
     s_in = x.new_ones([x.shape[0]])
     steps = len(sigmas)
@@ -568,7 +570,15 @@ def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, p
         with th.enable_grad():
             x_ = x.detach().clone().requires_grad_()
             denoised = model(x_, sigmas[i] * s_in)
-            difference = y - operator.forward(denoised)
+            if dmode == "mse":
+                # sr, deblurring, no overfitting
+                difference = y - operator.forward(denoised)
+            elif dmode == "crossentropy":
+                # avoid overfitting
+                logits = operator.forward(denoised, mode='noninit')
+                difference = F.cross_entropy(logits, y[:,0].to(th.long))
+            else:
+                assert(0)
             norm = th.linalg.norm(difference)
             norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
             pbar.set_postfix({'distance': norm.item()}, refresh=False)
@@ -595,7 +605,7 @@ def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, p
     return x
 
 @th.no_grad()
-def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, distiller=None, save_dir=None):
+def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, distiller=None, save_dir=None, dmode="mse"):
     """DPS-CM with ancestral sampling."""
     s_in = x.new_ones([x.shape[0]])
     steps = len(sigmas)
@@ -607,11 +617,19 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
         with th.enable_grad():
             x_ = x.detach().clone().requires_grad_()
             denoisedsp = distiller(x_, sigmas[i] * s_in)
-            difference = y - operator.forward(denoisedsp)
+            if dmode == "mse":
+                # sr, deblurring, no overfitting
+                difference = y - operator.forward(denoisedsp)
+            elif dmode == "crossentropy":
+                # avoid overfitting
+                logits = operator.forward(denoisedsp + th.randn_like(denoisedsp) * 0.2, mode='noninit')
+                difference = F.cross_entropy(logits, y[:,0].to(th.long))
+            else:
+                assert(0)
             norm = th.linalg.norm(difference)
             norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
             pbar.set_postfix({'distance': norm.item()}, refresh=False)
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 50 == 0:
             torchvision.utils.save_image((x + 1.0) / 2.0, os.path.join(save_dir, 'progress', fname))
             torchvision.utils.save_image((denoised + 1.0) / 2.0, os.path.join(save_dir, 'E0t', fname))
             torchvision.utils.save_image((denoisedsp + 1.0) / 2.0, os.path.join(save_dir, 'x0t', fname))
@@ -635,7 +653,7 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
         x = x - offset
     return x
 
-def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, t_min=0.002, t_max=80.0, rho=7.0, steps=151, ts=[0,75,100,125,150], each_optimize_step=200, distiller=None, save_dir=None):
+def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, t_min=0.002, t_max=80.0, rho=7.0, steps=151, ts=[0,75,100,125,150], each_optimize_step=200, distiller=None, save_dir=None, dmode="mse"):
     loss_fn = th.nn.MSELoss(reduction='sum')
     t_max_rho = t_max ** (1 / rho)
     t_min_rho = t_min ** (1 / rho)
