@@ -624,6 +624,8 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
                 # avoid overfitting
                 logits = operator.forward(denoisedsp + th.randn_like(denoisedsp) * 0.2, mode='noninit')
                 difference = F.cross_entropy(logits, y[:,0].to(th.long))
+            elif dmode == "directloss":
+                difference = operator.forward(denoisedsp, caption = y, mode='noninit')
             else:
                 assert(0)
             norm = th.linalg.norm(difference)
