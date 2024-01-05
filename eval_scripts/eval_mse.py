@@ -6,8 +6,8 @@ from torchmetrics import JaccardIndex
 from tqdm import tqdm
 import numpy as np
 
-label_folder = '/NEW_EDS/JJ_Group/xutd/consistency_models/results_lsun_bedroom/dpscm/super_resolution/input'
-predi_folder = '/NEW_EDS/JJ_Group/xutd/consistency_models/results_lsun_bedroom/dpscm/super_resolution/low_res'
+label_folder = '/NEW_EDS/JJ_Group/xutd/consistency_models/results_lsun_bedroom/dps/super_resolution/input'
+predi_folder = '/NEW_EDS/JJ_Group/xutd/consistency_models/results_lsun_bedroom/dps/super_resolution/low_res'
 
 transform = transforms.Compose([transforms.ToTensor()])
 
