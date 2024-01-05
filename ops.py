@@ -25,6 +25,10 @@ from torchvision import transforms
 from roomlayout import LayoutSeg
 from roomsegmentation import SegmentationModule,ModelBuilder
 
+from torchvision import transforms
+from torchvision.transforms.functional import InterpolationMode
+from roomtext import blip_itm,blip_decoder
+
 class Resizer(nn.Module):
     def __init__(self, in_shape, scale_factor=None, output_shape=None, kernel=None, antialiasing=True):
         super(Resizer, self).__init__()
@@ -308,6 +312,31 @@ class Segmentation(LinearOperator):
     
     def transpose(self, data):
         return data
+
+@register_operator(name='roomtext')
+class Image2Text(LinearOperator):
+    def __init__(self,device) -> None:
+        self.normalize = transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711))
+        self.transform_test = transforms.Compose([transforms.Resize((384, 384),interpolation=InterpolationMode.BICUBIC),self.normalize,])
+        self.itm_model = blip_itm(pretrained='/NEW_EDS/JJ_Group/zhuzr/huggingface/BLIP/model_base_retrieval_coco.pth', image_size=384, vit='base')
+        self.itm_model.eval()
+        self.itm_model = self.itm_model.to(device='cuda')
+        self.blip_decoder_model = blip_decoder(pretrained='/NEW_EDS/JJ_Group/zhuzr/huggingface/BLIP/model_base_caption_capfilt_large.pth', image_size=384, vit='base')
+        self.blip_decoder_model.eval()
+        self.blip_decoder_model = self.blip_decoder_model.to(device='cuda')
+    def forward(self, data, **kwargs):
+        data = (data + 1.0)/2
+        data = self.transform_test(data)
+        if kwargs['mode'] == 'init':
+            return self.blip_decoder_model.generate(data, sample=False, num_beams=3, max_length=20, min_length=5)
+        else:
+            itm_output = self.itm_model(data,kwargs['caption'],match_head='itm')
+            itm_score = torch.nn.functional.softmax(itm_output,dim=1)[:,1]
+            return itm_score
+        
+    def transpose(self,data):
+        return None
+
 
 __DATASET__ = {}
 
