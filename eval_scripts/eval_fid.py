@@ -19,8 +19,8 @@ def print_avgs(avgs, a=0):
         print("{0}: {1:.4}, ".format(key, np.mean(avgs[key][a:])), end="")
     print("")
 
-label_folder = '/NEW_EDS/JJ_Group/xutd/consistency_models/results_lsun_bedroom/dps/roomlayout/label'
-predi_folder = '/NEW_EDS/JJ_Group/xutd/consistency_models/results_lsun_bedroom/dps/roomlayout/recon'
+label_folder = '/NEW_EDS/JJ_Group/xutd/consistency_models/results_lsun_bedroom/dps/gaussian_blur/label'
+predi_folder = '/NEW_EDS/JJ_Group/xutd/consistency_models/results_lsun_bedroom/dps/gaussian_blur/recon'
 
 transform = transforms.Compose([transforms.ToTensor()])
 

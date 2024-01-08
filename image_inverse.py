@@ -139,6 +139,9 @@ def main():
             torchvision.utils.save_image(
                 low_out,
                 os.path.join(out_path, 'low_res', fname))
+        elif cfg['operator']['name'] == 'roomtext':
+            print(y_n)
+            assert(0)
         else:
             torchvision.utils.save_image((y_n + 1.0) / 2.0, os.path.join(out_path, 'input', fname))
             torchvision.utils.save_image((operator.forward(sample) + 1.0) / 2.0, os.path.join(out_path, 'low_res', fname))

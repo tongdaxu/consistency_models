@@ -12,6 +12,9 @@ import torch
 from math import pi
 
 from glob import glob
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 from PIL import Image
 from typing import Callable, Optional
 from torch.utils.data import DataLoader

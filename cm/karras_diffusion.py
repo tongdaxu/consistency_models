@@ -464,6 +464,7 @@ def karras_inverse(
 
     sample_fn = {
         "sample_euler_ancestral_dps": sample_euler_ancestral_dps,
+        "sample_euler_ancestral_lgd": sample_euler_ancestral_lgd,
         "sample_euler_ancestral_cm": sample_euler_ancestral_cm,
         "sample_cm_optimize_noise": sample_cm_optimize_noise,
     }[sampler]
@@ -605,6 +606,105 @@ def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, p
     return x
 
 @th.no_grad()
+def sample_euler_ancestral_fdm(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, distiller=None, save_dir=None, dmode="mse"):
+    """DPS with ancestral sampling."""
+    s_in = x.new_ones([x.shape[0]])
+    steps = len(sigmas)
+    indices = range(steps - 1)
+    pbar = tqdm(indices)
+    K = 1
+    for i in pbar:
+        fname = str(i).zfill(5) + '.png'
+        for j in range(K):
+            with th.enable_grad():
+                x_ = x.detach().clone().requires_grad_()
+                denoised = model(x_, sigmas[i] * s_in)
+                if dmode == "mse":
+                    # sr, deblurring, no overfitting
+                    difference = y - operator.forward(denoised)
+                elif dmode == "crossentropy":
+                    # avoid overfitting
+                    logits = operator.forward(denoised, mode='noninit')
+                    difference = F.cross_entropy(logits, y[:,0].to(th.long))
+                else:
+                    assert(0)
+                norm = th.linalg.norm(difference)
+                norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
+                pbar.set_postfix({'distance': norm.item()}, refresh=False)
+            if (i + 1) % 100 == 0:
+                torchvision.utils.save_image((denoised + 1.0) / 2.0, os.path.join(save_dir, 'E0t', fname))
+
+            sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1])
+            if callback is not None:
+                callback(
+                    {
+                        "x": x,
+                        "i": i,
+                        "sigma": sigmas[i],
+                        "sigma_hat": sigmas[i],
+                        "denoised": denoised,
+                    }
+                )
+            d = to_d(x, sigmas[i], denoised)
+            dt = sigma_down - sigmas[i]
+            x = x + d * dt
+            x = x + generator.randn_like(x) * sigma_up
+            offset = zeta * norm_grad * sigmas[i]
+            x = x - offset
+            if j != K - 1:
+                x = x + generator.randn_like(x) * sigma_down
+            else:
+                # last inner loop step, pass
+                pass
+    return x
+
+@th.no_grad()
+def sample_euler_ancestral_lgd(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, distiller=None, save_dir=None, dmode="mse"):
+    """LGD-MC with ancestral sampling."""
+    s_in = x.new_ones([x.shape[0]])
+    steps = len(sigmas)
+    indices = range(steps - 1)
+    pbar = tqdm(indices)
+    for i in pbar:
+        fname = str(i).zfill(5) + '.png'
+        with th.enable_grad():
+            x_ = x.detach().clone().requires_grad_()
+            denoised = model(x_, sigmas[i] * s_in)
+            if dmode == "mse":
+                # sr, deblurring, no overfitting
+                difference = y - operator.forward(denoised + th.randn_like(denoised) * 0.2)
+            elif dmode == "crossentropy":
+                # avoid overfitting
+                logits = operator.forward(denoised + th.randn_like(denoised) * 0.2, mode='noninit')
+                difference = F.cross_entropy(logits, y[:,0].to(th.long))
+            else:
+                assert(0)
+            norm = th.linalg.norm(difference)
+            norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
+            pbar.set_postfix({'distance': norm.item()}, refresh=False)
+        if (i + 1) % 100 == 0:
+            torchvision.utils.save_image((denoised + 1.0) / 2.0, os.path.join(save_dir, 'E0t', fname))
+
+        sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1])
+        if callback is not None:
+            callback(
+                {
+                    "x": x,
+                    "i": i,
+                    "sigma": sigmas[i],
+                    "sigma_hat": sigmas[i],
+                    "denoised": denoised,
+                }
+            )
+        d = to_d(x, sigmas[i], denoised)
+        dt = sigma_down - sigmas[i]
+        x = x + d * dt
+        x = x + generator.randn_like(x) * sigma_up
+        offset = zeta * norm_grad * sigmas[i]
+        x = x - offset
+    return x
+
+@th.no_grad()
 def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, distiller=None, save_dir=None, dmode="mse"):
     """DPS-CM with ancestral sampling."""
     s_in = x.new_ones([x.shape[0]])
@@ -652,6 +752,9 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
         x = x + d * dt
         x = x + generator.randn_like(x) * sigma_up
         offset = zeta * norm_grad * sigmas[i]
+        # if dmode == "mse":
+        #     offset = zeta * norm_grad * th.mean(th.abs(x - th.mean(x)))
+        # else:
         x = x - offset
     return x
 
