@@ -332,7 +332,7 @@ class Image2Text(LinearOperator):
         else:
             itm_output = self.itm_model(data,kwargs['caption'],match_head='itm')
             itm_score = torch.nn.functional.softmax(itm_output,dim=1)[:,1]
-            return itm_score
+            return - itm_score
         
     def transpose(self,data):
         return None

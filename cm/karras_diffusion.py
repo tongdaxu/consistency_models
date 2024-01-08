@@ -758,41 +758,62 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
         x = x - offset
     return x
 
-def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, t_min=0.002, t_max=80.0, rho=7.0, steps=151, ts=[0,75,100,125,150], each_optimize_step=200, distiller=None, save_dir=None, dmode="mse"):
-    loss_fn = th.nn.MSELoss(reduction='sum')
+def sample_cm_optimize_noise(model, x, sigmas, generator, y, operator, zeta, progress=False, callback=None, t_min=0.002, t_max=80.0, rho=7.0, steps=40, ts=[0,17,39], each_optimize_step=50, distiller=None, save_dir=None, dmode="mse"):
     t_max_rho = t_max ** (1 / rho)
     t_min_rho = t_min ** (1 / rho)
+    loss_fn = nn.MSELoss(reduction="sum")
     s_in = x.new_ones([x.shape[0]])
     x = Variable(x, requires_grad=True)
-    input_optimizer = th.optim.Adam([x], lr=2e-1)
+    input_optimizer = th.optim.Adam([x], lr=1e-1)
     for optimize_step in range(each_optimize_step):
         optimize_x0 = model(x, sigmas[0] * s_in)
-        low_optimize_x0 = operator.forward(optimize_x0)
-        loss = loss_fn(y,low_optimize_x0)
+        
+        if dmode == "mse":
+            # sr, deblurring, no overfitting
+            difference = loss_fn(y, operator.forward(optimize_x0, mode='noninit'))
+        elif dmode == "crossentropy":
+            # avoid overfitting
+            logits = operator.forward(optimize_x0, mode='noninit')
+            # logits = operator.forward(optimize_x0 , mode='noninit')
+            difference = F.cross_entropy(logits, y[:,0].to(th.long))
+        elif dmode == "directloss":
+            difference = operator.forward(optimize_x0, caption = y, mode='noninit')
+        loss = difference
         loss.backward()
         print(loss)
         input_optimizer.step()
         input_optimizer.zero_grad()
-        save_image((optimize_x0+1)/2,"0_"+str(optimize_step)+".png")
+    save_image((optimize_x0+1)/2,"text0.png")
     x0 = optimize_x0
     for denoise_step in range(1, len(ts) - 1):
         now_t = (t_max_rho + ts[denoise_step] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         now_t = np.clip(now_t, t_min, t_max)
         tmp_random = generator.randn_like(x)
         tmp_random = Variable(tmp_random, requires_grad=True)
-        input_optimizer = th.optim.Adam([tmp_random], lr=1e-2)
+        input_optimizer = th.optim.Adam([tmp_random], lr=1e-3)
         optimize_x0 = None
         for optimize_step in range(each_optimize_step):
             x = x0.detach().clone() + tmp_random * np.sqrt(now_t**2 - t_min**2)
             optimize_x0 = model(x, now_t * s_in)
-            low_optimize_x0 = operator.forward(optimize_x0)
-            loss = loss_fn(y,low_optimize_x0)
+            # low_optimize_x0 = operator.forward(optimize_x0 + th.randn_like(optimize_x0) * 0.2, mode='noninit')
+            if dmode == "mse":
+            # sr, deblurring, no overfitting
+                difference = loss_fn(y, operator.forward(optimize_x0, mode='noninit'))
+            elif dmode == "crossentropy":
+                # avoid overfitting
+                logits = operator.forward(optimize_x0, mode='noninit')
+                # logits = operator.forward(optimize_x0 , mode='noninit')
+                difference = F.cross_entropy(logits, y[:,0].to(th.long))
+            elif dmode == "directloss":
+                difference = operator.forward(optimize_x0, caption = y, mode='noninit')
+            loss = difference
             loss.backward()
             print(loss)
             input_optimizer.step()
             input_optimizer.zero_grad()
-            save_image((optimize_x0+1)/2,str(denoise_step)+"_"+str(optimize_step)+".png")
+        save_image((optimize_x0+1)/2,"text"+str(denoise_step)+".png")
         x0 = optimize_x0
+    print("done")
     return x0
 
 

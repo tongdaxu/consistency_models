@@ -19,3 +19,5 @@ dist/
 
 # Other
 *.DS_Store
+
+*.png
