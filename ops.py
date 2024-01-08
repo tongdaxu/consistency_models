@@ -23,11 +23,12 @@ from torchvision.datasets import VisionDataset
 import os 
 from torchvision import transforms
 from roomlayout import LayoutSeg
-from roomsegmentation import SegmentationModule,ModelBuilder
+from roomsegmentation import SegmentationModule, ModelBuilder
 
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
-from roomtext import blip_itm,blip_decoder
+from roomtext import blip_itm, blip_decoder
+from gg18 import ScaleHyperpriorSTE
 
 class Resizer(nn.Module):
     def __init__(self, in_shape, scale_factor=None, output_shape=None, kernel=None, antialiasing=True):
@@ -337,6 +338,33 @@ class Image2Text(LinearOperator):
     def transpose(self,data):
         return None
 
+model_paths = [
+    '/home/xutd/.cache/torch/hub/checkpoints/bmshj2018-hyperprior-1-7eb97409.pth.tar',
+    '/home/xutd/.cache/torch/hub/checkpoints/bmshj2018-hyperprior-2-93677231.pth.tar',
+    '/home/xutd/.cache/torch/hub/checkpoints/bmshj2018-hyperprior-3-6d87be32.pth.tar',
+    '/home/xutd/.cache/torch/hub/checkpoints/bmshj2018-hyperprior-4-de1b779c.pth.tar',
+    '/home/xutd/.cache/torch/hub/checkpoints/bmshj2018-hyperprior-5-f8b614e1.pth.tar',
+    '/home/xutd/.cache/torch/hub/checkpoints/bmshj2018-hyperprior-6-1ab9c41e.pth.tar',
+    '/home/xutd/.cache/torch/hub/checkpoints/bmshj2018-hyperprior-7-3804dcbd.pth.tar',
+    '/home/xutd/.cache/torch/hub/checkpoints/bmshj2018-hyperprior-8-a583f0cf.pth.tar',
+]
+Ns, Ms = [128,128,128,128,128,192,192,192], [192,192,192,192,192,320,320,320]
+
+@register_operator(name='gg18')
+class CodecOperator(LinearOperator):
+    def __init__(self, q, device):
+        self.codec = ScaleHyperpriorSTE(Ns[q-1], Ms[q-1])
+        self.codec.load_state_dict_gg18(torch.load(model_paths[q - 1]))
+        self.codec = self.codec.cuda()
+        self.codec.eval()
+        print("load gg18 q: {}".format(q))
+        
+    def forward(self, data, **kwargs):
+        out = self.codec((data + 1.0) / 2.0)
+        return (out["x_bar"] * 2.0) - 1.0
+
+    def transpose(self,data):
+        return None
 
 __DATASET__ = {}
 

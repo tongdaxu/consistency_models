@@ -749,9 +749,13 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
             )
         d = to_d(x, sigmas[i], denoised)
         dt = sigma_down - sigmas[i]
+        # mu = th.mean(x)
+        # var = th.mean(th.abs(x - mu))
+        # var = th.sqrt(th.mean((x-mu)**2))
         x = x + d * dt
         x = x + generator.randn_like(x) * sigma_up
         offset = zeta * norm_grad * sigmas[i]
+        # offset = zeta * norm_grad * var
         # if dmode == "mse":
         #     offset = zeta * norm_grad * th.mean(th.abs(x - th.mean(x)))
         # else:
@@ -1171,7 +1175,6 @@ def iterative_inpainting(
         x = x0 + generator.randn_like(x) * np.sqrt(next_t**2 - t_min**2)
 
     return x, images
-
 
 @th.no_grad()
 def iterative_superres(

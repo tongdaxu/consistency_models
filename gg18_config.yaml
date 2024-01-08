@@ -1,0 +1,10 @@
+zeta: 3.6
+dmode: mse
+
+data:
+  name: ffhq
+  root: /NEW_EDS/JJ_Group/xutd/common_datasets/lsun_bedroom_256x256/lanczos
+
+operator:
+    name: gg18
+    q: 1
