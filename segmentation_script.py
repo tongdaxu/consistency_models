@@ -4,23 +4,16 @@ import torchvision
 from ops import get_operator, get_dataset, get_dataloader
 from roomsegmentation import visualize_result
 import os
+import torch
 
-def load_yaml(file_path: str) -> dict:
-    with open(file_path) as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-    return config
+class2pixel = [2, 3, 5, 7, 9, 10, 12, 14, 15, 17, 19, 20, 22, 24, 26, 27, 29, 31, 32, 34, 36, 37, 39, 41, 43, 44, 46, 48, 49, 51, 53, 54, 56, 58, 60, 61, 63, 65, 66, 68, 70, 71, 73, 75, 77, 78, 80, 82, 83, 85, 87, 88, 90, 92, 94, 95, 97, 99, 100, 102, 104, 105, 107, 109, 111, 112, 114, 116, 117, 119, 121, 122, 124, 126, 128, 129, 131, 133, 134, 136, 138, 139, 141, 143, 145, 146, 148, 150, 151, 153, 155, 156, 158, 160, 162, 163, 165, 167, 168, 170, 172, 173, 175, 177, 179, 180, 182, 184, 185, 187, 189, 190, 192, 194, 196, 197, 199, 201, 202, 204, 206, 207, 209, 211, 213, 214, 216, 218, 219, 221, 223, 224, 226, 228, 230, 231, 233, 235, 236, 238, 240, 241, 243, 245, 247, 248, 250, 252, 253, 255] 
+pixel2class = {2: 0, 3: 1, 5: 2, 7: 3, 9: 4, 10: 5, 12: 6, 14: 7, 15: 8, 17: 9, 19: 10, 20: 11, 22: 12, 24: 13, 26: 14, 27: 15, 29: 16, 31: 17, 32: 18, 34: 19, 36: 20, 37: 21, 39: 22, 41: 23, 43: 24, 44: 25, 46: 26, 48: 27, 49: 28, 51: 29, 53: 30, 54: 31, 56: 32, 58: 33, 60: 34, 61: 35, 63: 36, 65: 37, 66: 38, 68: 39, 70: 40, 71: 41, 73: 42, 75: 43, 77: 44, 78: 45, 80: 46, 82: 47, 83: 48, 85: 49, 87: 50, 88: 51, 90: 52, 92: 53, 94: 54, 95: 55, 97: 56, 99: 57, 100: 58, 102: 59, 104: 60, 105: 61, 107: 62, 109: 63, 111: 64, 112: 65, 114: 66, 116: 67, 117: 68, 119: 69, 121: 70, 122: 71, 124: 72, 126: 73, 128: 74, 129: 75, 131: 76, 133: 77, 134: 78, 136: 79, 138: 80, 139: 81, 141: 82, 143: 83, 145: 84, 146: 85, 148: 86, 150: 87, 151: 88, 153: 89, 155: 90, 156: 91, 158: 92, 160: 93, 162: 94, 163: 95, 165: 96, 167: 97, 168: 98, 170: 99, 172: 100, 173: 101, 175: 102, 177: 103, 179: 104, 180: 105, 182: 106, 184: 107, 185: 108, 187: 109, 189: 110, 190: 111, 192: 112, 194: 113, 196: 114, 197: 115, 199: 116, 201: 117, 202: 118, 204: 119, 206: 120, 207: 121, 209: 122, 211: 123, 213: 124, 214: 125, 216: 126, 218: 127, 219: 128, 221: 129, 223: 130, 224: 131, 226: 132, 228: 133, 230: 134, 231: 135, 233: 136, 235: 137, 236: 138, 238: 139, 240: 140, 241: 141, 243: 142, 245: 143, 247: 144, 248: 145, 250: 146, 252: 147, 253: 148, 255: 149}
 
-cfg = load_yaml("/NEW_EDS/JJ_Group/zhuzr/xutd_cm/segmentation_config.yaml")
-transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-dataset = get_dataset(**cfg['data'], transforms=transform)
-loader = get_dataloader(dataset, batch_size=1, num_workers=0, train=False)
-operator = get_operator(device='cuda', **cfg['operator'])
-
-for i, ref_img in enumerate(loader):
-    ref_img = ref_img.to('cuda')
-    low_out1 = (operator.forward(ref_img, mode='init') + 1.0) / cfg['nclass']
-    torchvision.utils.save_image(low_out1,os.path.join('/NEW_EDS/JJ_Group/zhuzr/icml24/results/roomsegmentation/1_channel_label', str(i).zfill(5)+'.png'))
-    low_out2 = (operator.forward(ref_img, mode='noninit') + 1.0) / cfg['nclass']
-    visualize_result(low_out2,os.path.join('/NEW_EDS/JJ_Group/zhuzr/icml24/results/roomsegmentation/3_channels_label', str(i).zfill(5)+'.png'))
-    
+img = torchvision.io.read_image("/NEW_EDS/JJ_Group/zhuzr/icml24/results/roomsegmentation/1_channel_label/00000.png")
+img2class = img
+for i in range(img.shape[0]):
+    for j in range(img.shape[1]):
+        for k in range(img.shape[2]):
+            img2class[i][j][k] = pixel2class[img[i][j][k].item()]
+img2class = img2class[0].unsqueeze(0)
+visualize_result(img2class,"aaaaaa.png")
