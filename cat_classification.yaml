@@ -1,0 +1,10 @@
+zeta: 7.2
+
+data:
+  name: ffhq
+  root: /NEW_EDS/JJ_Group/xutd/common_datasets/lsun_cat_256x256/lanczos
+
+operator:
+  name: catcls
+
+dmode: crossentropy
