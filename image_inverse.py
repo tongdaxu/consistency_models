@@ -104,7 +104,10 @@ def main():
         # for segmentation
         ## init means get argmax integer [0, C)
         ## noninit means get logits
-        y_n = operator.forward(ref_img, mode='init')
+        if cfg['operator']['name'] == 'catcls2':
+            y_n = torch.tensor([[281 + i%5]], dtype=torch.float32).cuda()
+        else:
+            y_n = operator.forward(ref_img, mode='init')
         model_kwargs = {}
         sample = karras_inverse(
             diffusion,
@@ -139,6 +142,12 @@ def main():
             torchvision.utils.save_image(
                 low_out,
                 os.path.join(out_path, 'low_res', fname))
+        elif cfg['operator']['name'] == 'catcls2':
+            low_out = operator.forward(sample, mode='init')
+            with open(os.path.join(out_path, 'input', fname + '.txt'), "w+") as f:
+                f.write(str(y_n.item()))
+            with open(os.path.join(out_path, 'low_res', fname + '.txt'), "w+") as f:
+                f.write(str(low_out.item()))
         elif cfg['operator']['name'] == 'roomtext':
             low_out = operator.forward(sample, mode='init')
             with open(os.path.join(out_path, 'input', fname + '.txt'), "w+") as f:

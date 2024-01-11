@@ -29,6 +29,7 @@ from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
 from roomtext import blip_itm, blip_decoder
 from gg18 import ScaleHyperpriorSTE
+from torchvision.models import resnet50, ResNet50_Weights
 
 class Resizer(nn.Module):
     def __init__(self, in_shape, scale_factor=None, output_shape=None, kernel=None, antialiasing=True):
@@ -346,14 +347,35 @@ class CatClassification(LinearOperator):
         self.net = torch.load("/NEW_EDS/JJ_Group/zhuzr/icml24/dataset/animal-breed-classification/cat_breed_vgg16.pth") 
        
     def forward(self, data, **kwargs):
-        data = (data + 1.0)/2.0
+        data = (data + 1.0) / 2.0
         score = self.net(data)    
         score = F.softmax(score, dim=1)
         if kwargs['mode'] == 'init':
             result = torch.zeros_like(score)
-            index = torch.argmax(score,dim=1)
-            result[:,index] = 1.0
-            return result
+            index = torch.argmax(score, dim=1, keepdim=True)
+            return index
+        else:
+            return score
+        
+    def transpose(self,data):
+        return None
+
+
+@register_operator(name='catcls2')
+class CatClassification2(LinearOperator):
+    def __init__(self, device):
+        self.model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2).to(device)
+        self.model.eval()
+        self.normalize = transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711))
+        self.transform_test = transforms.Compose([transforms.Resize((224, 224),interpolation=InterpolationMode.BICUBIC),self.normalize,])
+    def forward(self, data, **kwargs):
+        data = (data + 1.0) / 2.0
+        data = self.transform_test(data)
+        uscore = self.model(data)
+        score = F.softmax(uscore, dim=1)
+        if kwargs['mode'] == 'init':
+            index = torch.argmax(score, dim=1, keepdim=True)
+            return index
         else:
             return score
         

@@ -150,3 +150,24 @@ CUDA_VISIBLE_DEVICES=1 nohup python -u image_inverse.py --training_mode edm --ge
 CUDA_VISIBLE_DEVICES=3 nohup python -u image_inverse.py --training_mode edm --generator determ-indiv --batch_size 1 --sigma_max 80 --sigma_min 0.002 --s_churn 0 --steps 1000 --sampler sample_euler_ancestral_cm --model_path edm_bedroom256_ema.pt --distiller_path /NEW_EDS/JJ_Group/zhuzr/consistency_models/cd_bedroom256_lpips.pt --attention_resolutions 32,16,8  --class_cond False --dropout 0.1 --image_size 256 --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --num_samples 1 --resblock_updown True --use_fp16 True --use_scale_shift_norm False --weight_schedule karras --savedir=results_lsun_bedroom2/dpscm/ --cfg blip_text_config.yaml &> dpscm_blip_det.out &
 
 CUDA_VISIBLE_DEVICES=0 nohup python -u image_inverse.py --training_mode edm --generator determ-indiv --batch_size 1 --sigma_max 80 --sigma_min 0.002 --s_churn 0 --steps 1000 --sampler sample_euler_ancestral_dps --model_path edm_bedroom256_ema.pt --attention_resolutions 32,16,8  --class_cond False --dropout 0.1 --image_size 256 --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --num_samples 1 --resblock_updown True --use_fp16 True --use_scale_shift_norm False --weight_schedule karras --savedir=results_lsun_bedroom2/dps/ --cfg gg18_config.yaml &> dps_gg18_lr3.6.out &
+
+
+{"Ragdoll": 0, "Siamese": 1, "Birman": 2, "Sphynx": 3, "Abyssinian": 4, "British_Shorthair": 5, "Bengal": 6, "Bombay": 7, "Russian_Blue": 8, "Persian": 9, "Maine_Coon": 10, "Egyptian_Mau": 11}
+
+CUDA_VISIBLE_DEVICES=5 nohup python -u image_inverse.py --training_mode edm --generator determ-indiv --batch_size 1 --sigma_max 80 --sigma_min 0.002 --s_churn 0 --steps 1000 --sampler sample_euler_ancestral_cm --model_path edm_cat256_ema.pt --distiller_path cd_cat256_lpips.pt --attention_resolutions 32,16,8  --class_cond False --dropout 0.1 --image_size 256 --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --num_samples 1 --resblock_updown True --use_fp16 True --use_scale_shift_norm False --weight_schedule karras --savedir=results_lsun_bedroom/dpscm/ --cfg cat_classification.yaml &> dpscm_cls.out &
+
+
+CUDA_VISIBLE_DEVICES=7 nohup python -u image_inverse.py --training_mode edm --generator determ-indiv --batch_size 1 --sigma_max 80 --sigma_min 0.002 --s_churn 0 --steps 1000 --sampler sample_euler_ancestral_dps --model_path edm_cat256_ema.pt --attention_resolutions 32,16,8  --class_cond False --dropout 0.1 --image_size 256 --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --num_samples 1 --resblock_updown True --use_fp16 True --use_scale_shift_norm False --weight_schedule karras --savedir=results_lsun_bedroom/dps/ --cfg cat_classification.yaml &> dps_cls.out &
+
+
+tiger cat n02123159
+Egyptian cat n02124075
+Persian cat n02123394
+tabby cat n02123045
+Siamese cat n02123597
+
+281: 'tabby, tabby cat', n02123045
+282: 'tiger cat', n02123159
+283: 'Persian cat', n02123394
+284: 'Siamese cat, Siamese', n02123597
+285: 'Egyptian cat', n02124075
