@@ -140,8 +140,11 @@ def main():
                 low_out,
                 os.path.join(out_path, 'low_res', fname))
         elif cfg['operator']['name'] == 'roomtext':
-            print(y_n)
-            assert(0)
+            low_out = operator.forward(sample, mode='init')
+            with open(os.path.join(out_path, 'input', fname + '.txt'), "w+") as f:
+                f.write(y_n[0])
+            with open(os.path.join(out_path, 'low_res', fname + '.txt'), "w+") as f:
+                f.write(low_out[0])
         else:
             torchvision.utils.save_image((y_n + 1.0) / 2.0, os.path.join(out_path, 'input', fname))
             torchvision.utils.save_image((operator.forward(sample) + 1.0) / 2.0, os.path.join(out_path, 'low_res', fname))

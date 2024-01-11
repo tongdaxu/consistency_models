@@ -574,13 +574,17 @@ def sample_euler_ancestral_dps(model, x, sigmas, generator, y, operator, zeta, p
             if dmode == "mse":
                 # sr, deblurring, no overfitting
                 difference = y - operator.forward(denoised)
+                norm = th.linalg.norm(difference)
             elif dmode == "crossentropy":
                 # avoid overfitting
                 logits = operator.forward(denoised, mode='noninit')
                 difference = F.cross_entropy(logits, y[:,0].to(th.long))
+                norm = th.linalg.norm(difference)
+            elif dmode == "directloss":
+                difference = operator.forward(denoised, caption = y, mode='noninit')
+                norm = difference
             else:
                 assert(0)
-            norm = th.linalg.norm(difference)
             norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
             pbar.set_postfix({'distance': norm.item()}, refresh=False)
         if (i + 1) % 100 == 0:
@@ -720,15 +724,18 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
             if dmode == "mse":
                 # sr, deblurring, no overfitting
                 difference = y - operator.forward(denoisedsp)
+                norm = th.linalg.norm(difference)
             elif dmode == "crossentropy":
                 # avoid overfitting
+                # logits = operator.forward(denoisedsp, mode='noninit')
                 logits = operator.forward(denoisedsp + th.randn_like(denoisedsp) * 0.2, mode='noninit')
                 difference = F.cross_entropy(logits, y[:,0].to(th.long))
+                norm = th.linalg.norm(difference)
             elif dmode == "directloss":
-                difference = operator.forward(denoisedsp, caption = y, mode='noninit')
+                difference = operator.forward(denoisedsp + th.randn_like(denoisedsp) * 0.2, caption = y, mode='noninit')
+                norm = difference
             else:
                 assert(0)
-            norm = th.linalg.norm(difference)
             norm_grad = th.autograd.grad(outputs=norm, inputs=x_)[0]
             pbar.set_postfix({'distance': norm.item()}, refresh=False)
         if (i + 1) % 50 == 0:
@@ -749,16 +756,9 @@ def sample_euler_ancestral_cm(model, x, sigmas, generator, y, operator, zeta, pr
             )
         d = to_d(x, sigmas[i], denoised)
         dt = sigma_down - sigmas[i]
-        # mu = th.mean(x)
-        # var = th.mean(th.abs(x - mu))
-        # var = th.sqrt(th.mean((x-mu)**2))
         x = x + d * dt
         x = x + generator.randn_like(x) * sigma_up
         offset = zeta * norm_grad * sigmas[i]
-        # offset = zeta * norm_grad * var
-        # if dmode == "mse":
-        #     offset = zeta * norm_grad * th.mean(th.abs(x - th.mean(x)))
-        # else:
         x = x - offset
     return x
 

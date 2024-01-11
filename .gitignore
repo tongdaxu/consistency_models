@@ -1,5 +1,8 @@
 # Compiled python modules.
 *.pyc
+*.out
+*.pt
+*.pth
 
 # Byte-compiled
 _pycache__/

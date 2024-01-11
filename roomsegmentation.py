@@ -11,6 +11,7 @@ from scipy.io import loadmat
 import csv
 import numpy as np
 from PIL import Image
+import resnet
 
 def unique(ar, return_index=False, return_inverse=False, return_counts=False):
     ar = np.asanyarray(ar).flatten()
@@ -465,35 +466,98 @@ class ModelBuilder:
 
     @staticmethod
     def build_encoder(arch='resnet50dilated', fc_dim=512, weights=''):
-        orig_mobilenet = mobilenetv2(pretrained=False)
-        net_encoder = MobileNetV2Dilated(orig_mobilenet, dilate_scale=8)
-        # print(net_encoder.features)
+        pretrained = True if len(weights) == 0 else False
+        arch = arch.lower()
+        if arch == 'mobilenetv2dilated':
+            orig_mobilenet = mobilenetv2(pretrained=False)
+            net_encoder = MobileNetV2Dilated(orig_mobilenet, dilate_scale=8)
+        elif arch == 'resnet18':
+            orig_resnet = resnet.__dict__['resnet18'](pretrained=pretrained)
+            net_encoder = Resnet(orig_resnet)
+        elif arch == 'resnet18dilated':
+            orig_resnet = resnet.__dict__['resnet18'](pretrained=pretrained)
+            net_encoder = ResnetDilated(orig_resnet, dilate_scale=8)
+        elif arch == 'resnet34':
+            raise NotImplementedError
+            orig_resnet = resnet.__dict__['resnet34'](pretrained=pretrained)
+            net_encoder = Resnet(orig_resnet)
+        elif arch == 'resnet34dilated':
+            raise NotImplementedError
+            orig_resnet = resnet.__dict__['resnet34'](pretrained=pretrained)
+            net_encoder = ResnetDilated(orig_resnet, dilate_scale=8)
+        elif arch == 'resnet50':
+            orig_resnet = resnet.__dict__['resnet50'](pretrained=pretrained)
+            net_encoder = Resnet(orig_resnet)
+        elif arch == 'resnet50dilated':
+            orig_resnet = resnet.__dict__['resnet50'](pretrained=pretrained)
+            net_encoder = ResnetDilated(orig_resnet, dilate_scale=8)
+        elif arch == 'resnet101':
+            orig_resnet = resnet.__dict__['resnet101'](pretrained=pretrained)
+            net_encoder = Resnet(orig_resnet)
+        elif arch == 'resnet101dilated':
+            orig_resnet = resnet.__dict__['resnet101'](pretrained=pretrained)
+            net_encoder = ResnetDilated(orig_resnet, dilate_scale=8)
+        elif arch == 'resnext101':
+            orig_resnext = resnext.__dict__['resnext101'](pretrained=pretrained)
+            net_encoder = Resnet(orig_resnext) # we can still use class Resnet
+        elif arch == 'hrnetv2':
+            net_encoder = hrnet.__dict__['hrnetv2'](pretrained=pretrained)
+        else:
+            raise Exception('Architecture undefined!')
+
         # encoders are usually pretrained
         # net_encoder.apply(ModelBuilder.weights_init)
-        # tmp1 = []
-        # for name, param in net_encoder.named_parameters():
-        #     tmp1.append(param)
-        # print(tmp1)
         if len(weights) > 0:
             print('Loading weights for net_encoder')
-            net_encoder.load_state_dict(torch.load(weights, map_location=lambda storage, loc: storage), strict=False)
-        
-        # tmp2 = []
-        # for name, param in net_encoder.named_parameters():
-        #     tmp2.append(param)
-        # print(tmp2)
-        # print(tmp1 == tmp2)
+            net_encoder.load_state_dict(
+                torch.load(weights, map_location=lambda storage, loc: storage), strict=False)
         return net_encoder
 
     @staticmethod
     def build_decoder(arch='ppm_deepsup',
                       fc_dim=512, num_class=150,
                       weights='', use_softmax=False):
-        net_decoder = C1DeepSup(num_class=num_class,fc_dim=fc_dim,use_softmax=use_softmax)
+        arch = arch.lower()
+        if arch == 'c1_deepsup':
+            net_decoder = C1DeepSup(
+                num_class=num_class,
+                fc_dim=fc_dim,
+                use_softmax=use_softmax)
+        elif arch == 'c1':
+            net_decoder = C1(
+                num_class=num_class,
+                fc_dim=fc_dim,
+                use_softmax=use_softmax)
+        elif arch == 'ppm':
+            net_decoder = PPM(
+                num_class=num_class,
+                fc_dim=fc_dim,
+                use_softmax=use_softmax)
+        elif arch == 'ppm_deepsup':
+            net_decoder = PPMDeepsup(
+                num_class=num_class,
+                fc_dim=fc_dim,
+                use_softmax=use_softmax)
+        elif arch == 'upernet_lite':
+            net_decoder = UPerNet(
+                num_class=num_class,
+                fc_dim=fc_dim,
+                use_softmax=use_softmax,
+                fpn_dim=256)
+        elif arch == 'upernet':
+            net_decoder = UPerNet(
+                num_class=num_class,
+                fc_dim=fc_dim,
+                use_softmax=use_softmax,
+                fpn_dim=512)
+        else:
+            raise Exception('Architecture undefined!')
+
         net_decoder.apply(ModelBuilder.weights_init)
         if len(weights) > 0:
             print('Loading weights for net_decoder')
-            net_decoder.load_state_dict(torch.load(weights, map_location=lambda storage, loc: storage), strict=False)
+            net_decoder.load_state_dict(
+                torch.load(weights, map_location=lambda storage, loc: storage), strict=False)
         return net_decoder
 
 
